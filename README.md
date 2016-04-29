@@ -17,7 +17,7 @@ Any `.elmx` dependency will be compiled to an `.elm` file.
 If no `outputDirectory` is specified, the compiled elm will be placed
 in the same directory as it's elmx source.
 
-```json
+```javascript
 {
   module: {
     preLoaders: [
