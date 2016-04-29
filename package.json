@@ -1,0 +1,19 @@
+{
+  "name": "elmx-webpack-preloader",
+  "version": "1.0.0",
+  "description": "Webpack preloader to pre-compile elmx into elm files.",
+  "main": "index.js",
+  "dependencies": {
+    "elmx": "^1.0.2",
+    "loader-utils": "^0.2.14",
+    "lodash": "3.10.1",
+    "mkdirp": "^0.5.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
