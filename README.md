@@ -22,6 +22,7 @@ in the same directory as it's elmx source.
   module: {
     preLoaders: [
       {
+        // Notice that the preloader actually reads .elm files looking for dependencies to be compiled from elmx
         test: /\.elm$/,
         loader: 'elmx-webpack-preloader',
         include: [join(__dirname, "src/elm")],
