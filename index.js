@@ -10,6 +10,8 @@ var elmxParser = require('elmx');
 var cachedDependencies = [];
 
 var defaultOptions = {
+  exts: ['.elm', '.elmx', '.js', '.jsx'],
+  srcDirs: null,
   cache: false
 };
 
@@ -27,36 +29,49 @@ var getOptions = function() {
 
 var addDependencies = function(dependencies) {
   cachedDependencies = dependencies;
-  _(dependencies).pluck('full').map(this.addDependency.bind(this)).value()
+  _(dependencies).map(this.addDependency.bind(this))
   return dependencies;
 };
 
-function checkIsFile(dependency, ext) {
+function checkIsFile(path) {
   return new Promise(function(resolve, reject) {
-    var full = dependency.path + ext;
-    fs.stat(full, function(err, stats) {
+    fs.stat(path, function(err, stats) {
       if (err) {
         reject(err);
       } else if (stats.isFile()) {
-        dependency.full = full
-        dependency.ext = ext
-        resolve([dependency]);
+        resolve(path);
       } else {
-        resolve([]);
+        reject(path);
       }
     });
   });
 }
 
+function findDependencyInSrcDirs(logicalName, srcDirs, exts) {
+  var promises = _.map(srcDirs, function (dir) {
+    return _.map(exts, function (ext) {
+      var relative = logicalName + ext;
+      return checkIsFile(path.join(dir, logicalName + ext)).then(function (file) {
+        return {file: file, logical: logicalName}
+      }, function () { return null })
+    })
+  })
+  return Promise.all(_.flatten(promises)).then(function (paths) {
+    return _.compact(paths)[0]
+  })
+}
+
+
+
 // Returns a Promise that returns a flat list of all the Elm files the given
 // Elm file depends on, based on the modules it loads via `import`.
-function findAllDependencies(file, knownDependencies, baseDir) {
+function findAllDependencies(file, knownDependencies, srcDirs, exts) {
   if (!knownDependencies) {
     knownDependencies = [];
   }
 
-  if (!baseDir) {
-    baseDir = path.dirname(file);
+  if (!srcDirs) {
+    srcDirs = [path.dirname(file)];
   }
 
   return new Promise(function(resolve, reject) {
@@ -67,7 +82,7 @@ function findAllDependencies(file, knownDependencies, baseDir) {
       } else {
         // Turn e.g. ~/code/elm-css/src/Css.elm
         // into just ~/code/elm-css/src/
-        var newImports = _.compact(lines.split("\n").map(function(line) {
+        var promises = lines.split("\n").map(function(line) {
           var matches = line.match(/^import\s+([^\s]+)/);
 
           if (matches) {
@@ -77,42 +92,21 @@ function findAllDependencies(file, knownDependencies, baseDir) {
             // e.g. Css/Declarations
             var dependencyLogicalName = moduleName.replace(/\./g, "/");
 
-            // e.g. ~/code/elm-css/src/Css/Declarations.elm
-            var result = {path: path.join(baseDir, dependencyLogicalName), logical: dependencyLogicalName}
+            return findDependencyInSrcDirs(dependencyLogicalName, srcDirs, exts).then(function (dep) {
+              return _.find(knownDependencies, _.isEqual.bind(_, dep)) ? null : dep;
+            })
 
-            return _.find(knownDependencies, _.isEqual.bind(_, result)) ? null : result;
           } else {
-            return null;
+            return new Promise(function(resolve) { resolve(null) });
           }
-        }));
-
-        var promises = newImports.map(function(newImport) {
-          return new Promise(function(resolve, reject) {
-            return checkIsFile(newImport, ".elm").then(resolve).catch(function(firstErr) {
-              if (firstErr.code === "ENOENT") {
-                // If we couldn't find the import as a .elm file, try as .elx
-                checkIsFile(newImport, ".elmx").then(resolve).catch(function(secondErr) {
-                  if (secondErr.code === "ENOENT") {
-                    // If we don't find the dependency in our filesystem, assume it's because
-                    // it comes in through a third-party package rather than our sources.
-                    resolve([]);
-                  } else {
-                    reject(secondErr);
-                  }
-                })
-              } else {
-                reject(firstErr);
-              }
-            });
-          });
         });
 
         Promise.all(promises).then(function(nestedValidDependencies) {
-          var validDependencies = _.flatten(nestedValidDependencies);
+          var validDependencies = _.compact(_.flatten(nestedValidDependencies));
           var newDependencies = knownDependencies.concat(validDependencies);
           var recursePromises = _.compact(validDependencies.map(function(dependency) {
-            return /^\.elmx?$/.test(dependency.ext) ?
-              findAllDependencies(dependency.full, newDependencies, baseDir) : null;
+            return /\.(elmx?|jsx?)$/.test(dependency.file) ?
+              findAllDependencies(dependency.file, newDependencies, srcDirs, exts) : null;
           }));
 
           Promise.all(recursePromises).then(function(extraDependencies) {
@@ -152,7 +146,7 @@ function elmxCompile(source, target) {
 
 function maybeCompileElmx(options, dependency) {
   return new Promise(function (resolve, reject) {
-    var source = dependency.full;
+    var source = dependency.file;
     var target = elmxTarget(dependency, options);
     fs.stat(source, function (err, stats) {
       if ((err && err.code === "ENOENT") || !stats.isFile()) { reject(err); }
@@ -175,7 +169,7 @@ function maybeCompileElmx(options, dependency) {
 function compileElmxDeps(options, deps) {
   return Promise.all(
     _(deps)
-      .filter(function (x) { return x.ext === '.elmx' })
+      .filter(function (x) { return /\.elmx$/.test(x.file) })
       .map(maybeCompileElmx.bind(this, options))
       .value()
   );
@@ -197,7 +191,7 @@ module.exports = function(source, map) {
   var dependencies = Promise.resolve()
     .then(function() {
       if (!options.cache || cachedDependencies.length === 0) {
-        return findAllDependencies(input).then(addDependencies.bind(this));
+        return findAllDependencies(input, [], options.srcDirs, options.exts).then(addDependencies.bind(this));
       }
     }.bind(this));
 
