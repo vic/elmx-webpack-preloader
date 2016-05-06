@@ -28,7 +28,7 @@ in the same directory as it's elmx source.
         loader: 'elmx-webpack-preloader',
         include: [join(__dirname, "src/elm")],
         query: {
-          srcDirs: ['src/elm']
+          sourceDirectories: ['src/elm']
           outputDirectory: '.tmp/elm'
         }
       }

@@ -11,7 +11,7 @@ var cachedDependencies = [];
 
 var defaultOptions = {
   exts: ['.elm', '.elmx', '.js', '.jsx'],
-  srcDirs: null,
+  sourceDirectories: null,
   cache: false
 };
 
@@ -28,8 +28,8 @@ var getOptions = function() {
 };
 
 var addDependencies = function(dependencies) {
-  cachedDependencies = dependencies;
-  _(dependencies).map(this.addDependency.bind(this))
+  cachedDependencies = _.pluck(dependencies, 'file');
+  _.map(cachedDependencies, this.addDependency.bind(this))
   return dependencies;
 };
 
@@ -47,8 +47,8 @@ function checkIsFile(path) {
   });
 }
 
-function findDependencyInSrcDirs(logicalName, srcDirs, exts) {
-  var promises = _.map(srcDirs, function (dir) {
+function findDependencyInSrcDirs(logicalName, sourceDirectories, exts) {
+  var promises = _.map(sourceDirectories, function (dir) {
     return _.map(exts, function (ext) {
       var relative = logicalName + ext;
       return checkIsFile(path.join(dir, logicalName + ext)).then(function (file) {
@@ -65,13 +65,13 @@ function findDependencyInSrcDirs(logicalName, srcDirs, exts) {
 
 // Returns a Promise that returns a flat list of all the Elm files the given
 // Elm file depends on, based on the modules it loads via `import`.
-function findAllDependencies(file, knownDependencies, srcDirs, exts) {
+function findAllDependencies(file, knownDependencies, sourceDirectories, exts) {
   if (!knownDependencies) {
     knownDependencies = [];
   }
 
-  if (!srcDirs) {
-    srcDirs = [path.dirname(file)];
+  if (!sourceDirectories) {
+    sourceDirectories = [path.dirname(file)];
   }
 
   return new Promise(function(resolve, reject) {
@@ -92,7 +92,7 @@ function findAllDependencies(file, knownDependencies, srcDirs, exts) {
             // e.g. Css/Declarations
             var dependencyLogicalName = moduleName.replace(/\./g, "/");
 
-            return findDependencyInSrcDirs(dependencyLogicalName, srcDirs, exts).then(function (dep) {
+            return findDependencyInSrcDirs(dependencyLogicalName, sourceDirectories, exts).then(function (dep) {
               return _.find(knownDependencies, _.isEqual.bind(_, dep)) ? null : dep;
             })
 
@@ -106,7 +106,7 @@ function findAllDependencies(file, knownDependencies, srcDirs, exts) {
           var newDependencies = knownDependencies.concat(validDependencies);
           var recursePromises = _.compact(validDependencies.map(function(dependency) {
             return /\.(elmx?|jsx?)$/.test(dependency.file) ?
-              findAllDependencies(dependency.file, newDependencies, srcDirs, exts) : null;
+              findAllDependencies(dependency.file, newDependencies, sourceDirectories, exts) : null;
           }));
 
           Promise.all(recursePromises).then(function(extraDependencies) {
@@ -191,7 +191,7 @@ module.exports = function(source, map) {
   var dependencies = Promise.resolve()
     .then(function() {
       if (!options.cache || cachedDependencies.length === 0) {
-        return findAllDependencies(input, [], options.srcDirs, options.exts).then(addDependencies.bind(this));
+        return findAllDependencies(input, [], options.sourceDirectories, options.exts).then(addDependencies.bind(this));
       }
     }.bind(this));
 
