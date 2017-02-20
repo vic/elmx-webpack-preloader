@@ -1,4 +1,6 @@
 # elmx-webpack-preloader
+[![help maintain this lib](https://img.shields.io/badge/looking%20for%20maintainer-DM%20%40vborja-663399.svg)](https://twitter.com/vborja)
+
 
 Compile [elmx](https://github.com/pzavolinsky/elmx) to elm files before using [elm-webpack-loader](https://github.com/rtfeldman/elm-webpack-loader)
 
