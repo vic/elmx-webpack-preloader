@@ -20,8 +20,8 @@ var getInput = function() {
 };
 
 var getOptions = function() {
-  var globalOptions = this.options.elmx || {};
-  var loaderOptions = loaderUtils.getLoaderConfig(this, 'elmx');
+  var globalOptions = (this.options && this.options.elmx) || {};
+  var loaderOptions = loaderUtils.parseQuery(this).query;
   return _.extend({
     emitWarning: this.emitWarning
   }, defaultOptions, globalOptions, loaderOptions);
